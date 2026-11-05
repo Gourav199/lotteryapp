@@ -506,7 +506,7 @@ function renderChecker() {
           <h2>Choose A ${esc(game.bonusLabel)}</h2>
           <span class="count" id="pb-count">None yet</span>
         </div>
-        <p class="help">Select 1 ${esc(game.bonusLabel)} from 1 to ${game.bonusMax}.</p>
+        <p class="help">Select 1 ${esc(game.bonusLabel)} from 1 to ${game.bonusMax}${game.bonusDistinct ? ", different from your main numbers" : ""}.</p>
         <div class="num-grid" id="pb-grid">${numberButtons(1, game.bonusMax, "p")}</div>
       </section>` : "";
   return `
@@ -595,12 +595,14 @@ function updateUI() {
       const on = state.whites.has(n);
       btn.classList.toggle("on", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
-      btn.disabled = full && !on;
+      btn.disabled = (full && !on) || (game.bonusDistinct && state.pb === n);
     });
     document.querySelectorAll("[data-pick='p']").forEach((btn) => {
-      const on = state.pb === +btn.dataset.n;
+      const n = +btn.dataset.n;
+      const on = state.pb === n;
       btn.classList.toggle("on", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
+      btn.disabled = game.bonusDistinct && state.whites.has(n) && !on;
     });
     const whites = selectedWhites();
     const whiteSlots = Array.from({ length: game.mainCount }, (_, i) => (
@@ -637,7 +639,9 @@ function clearResults() {
 }
 
 function toggleWhite(n) {
-  const max = checkerGame().mainCount;
+  const game = checkerGame();
+  const max = game.mainCount;
+  if (game.bonusDistinct && state.pb === n && !state.whites.has(n)) return;
   if (state.whites.has(n)) state.whites.delete(n);
   else if (state.whites.size < max) state.whites.add(n);
   else return;
@@ -653,6 +657,7 @@ function toggleDigit(n) {
 }
 
 function togglePb(n) {
+  if (checkerGame().bonusDistinct && state.pb !== n && state.whites.has(n)) return;
   state.pb = state.pb === n ? null : n;
   clearResults();
   updateUI();
@@ -758,29 +763,30 @@ function applyGameStrategy(kind) {
     }
     state.whites = new Set(mains.slice(0, game.mainCount));
     state.digits = [];
+    const bonusOptions = bonusNumbers(game, mains);
     if (!game.bonusMax) state.pb = null;
-    else if (kind === "random") state.pb = 1 + Math.floor(Math.random() * game.bonusMax);
+    else if (kind === "random") state.pb = bonusOptions[Math.floor(Math.random() * bonusOptions.length)];
     else if (kind === "overdue") {
-      let best = 1;
+      let best = bonusOptions[0];
       let bestGap = -1;
-      for (let n = 1; n <= game.bonusMax; n += 1) {
+      bonusOptions.forEach((n) => {
         const gap = bonusLast.has(n) ? bonusLast.get(n) : draws.length;
         if (gap > bestGap) {
           bestGap = gap;
           best = n;
         }
-      }
+      });
       state.pb = best;
     } else {
-      let best = 1;
+      let best = bonusOptions[0];
       let bestCount = -1;
-      for (let n = 1; n <= game.bonusMax; n += 1) {
+      bonusOptions.forEach((n) => {
         const count = bonusFreq.get(n) || 0;
         if (count > bestCount) {
           bestCount = count;
           best = n;
         }
-      }
+      });
       state.pb = best;
     }
   }
@@ -1127,6 +1133,19 @@ const PREDICT_GAMES = [
     session: false,
   },
   {
+    id: "lotto",
+    label: "New York Lotto",
+    blurb: "6 numbers from 1 to 59, then a Bonus number from the remaining numbers.",
+    mainMin: 1,
+    mainMax: 59,
+    mainCount: 6,
+    bonusMax: 59,
+    bonusLabel: "Bonus",
+    bonusDistinct: true,
+    ordered: false,
+    session: false,
+  },
+  {
     id: "millionaire",
     label: "Millionaire for Life",
     blurb: "5 numbers from 1 to 58, then a Millionaire Ball from 1 to 5.",
@@ -1193,6 +1212,25 @@ const drawCache = Object.create(null);
 
 function predictGame() {
   return PREDICT_GAMES.find((g) => g.id === state.predictGame) || PREDICT_GAMES[0];
+}
+
+function bonusNumbers(game, main) {
+  const selected = game.bonusDistinct ? new Set(main || []) : null;
+  const numbers = [];
+  for (let n = 1; n <= game.bonusMax; n += 1) {
+    if (!selected || !selected.has(n)) numbers.push(n);
+  }
+  return numbers;
+}
+
+function mostFrequentBonus(game, draws, main) {
+  const counts = new Map();
+  draws.forEach((draw) => {
+    if (draw.bonus != null) counts.set(draw.bonus, (counts.get(draw.bonus) || 0) + 1);
+  });
+  return bonusNumbers(game, main).sort((a, b) => (
+    (counts.get(b) || 0) - (counts.get(a) || 0) || a - b
+  ))[0] || null;
 }
 
 function gameDraws(game) {
@@ -1393,11 +1431,15 @@ function predictFromHistory(game, seed, recentCount, sourceDraws) {
     const preferred = draw.main.length === game.mainCount && draw.main.includes(seed)
       ? draw.main
       : [seed, ...others];
+    const main = fillSet(preferred);
+    const bonus = draw.bonus != null ? draw.bonus : modeBonus(withSeed);
     return {
       label,
       detail: drawWhen(draw),
-      main: fillSet(preferred),
-      bonus: draw.bonus != null ? draw.bonus : modeBonus(withSeed),
+      main,
+      bonus: game.bonusDistinct && main.includes(bonus)
+        ? mostFrequentBonus(game, draws, main)
+        : bonus,
     };
   }
 
@@ -1603,6 +1645,14 @@ function predictFromHistory(game, seed, recentCount, sourceDraws) {
     ];
   }
 
+  if (game.bonusDistinct) {
+    candidates = candidates.map((candidate) => (
+      candidate.main.includes(candidate.bonus)
+        ? { ...candidate, bonus: mostFrequentBonus(game, draws, candidate.main) }
+        : candidate
+    ));
+  }
+
   const pool = withSeed.length ? withSeed : draws;
   const used = new Set();
   let cursor = 0;
@@ -1667,9 +1717,9 @@ function predictFromHistory(game, seed, recentCount, sourceDraws) {
       unique.forEach((c) => {
         if (c.bonus != null) bVotes.set(c.bonus, (bVotes.get(c.bonus) || 0) + 1);
       });
-      let best = 1;
+      let best = bonusNumbers(game, first)[0];
       let bestHits = -1;
-      for (let n = 1; n <= game.bonusMax; n += 1) {
+      bonusNumbers(game, first).forEach((n) => {
         const hits = bVotes.get(n) || 0;
         const bestWith = bonusWith.get(best) || 0;
         const withN = bonusWith.get(n) || 0;
@@ -1682,7 +1732,7 @@ function predictFromHistory(game, seed, recentCount, sourceDraws) {
           best = n;
           bestHits = hits;
         }
-      }
+      });
       const text = bestHits > 1
         ? `${game.bonusLabel} ${best} is the most confident final number. It is the final number in ${bestHits} of the 5 results.`
         : `${game.bonusLabel} ${best} is the most confident final number. The 5 results did not share one final number, so this is the ${game.bonusLabel} drawn most often with ${seed}.`;
@@ -1735,6 +1785,7 @@ function predictFromHistory(game, seed, recentCount, sourceDraws) {
       let nudged = null;
       let best = -1;
       bonusHeat.forEach((count, n) => {
+        if (game.bonusDistinct && first.includes(n)) return;
         if (count > best || (count === best && (nudged == null || n < nudged))) {
           best = count;
           nudged = n;
@@ -1749,6 +1800,17 @@ function predictFromHistory(game, seed, recentCount, sourceDraws) {
           text: `${game.bonusLabel} ${nudged} leads in the latest ${commas(recentLimit)} drawings that included ${seed}.`,
         };
       }
+    }
+  }
+
+  if (game.bonusDistinct && first.includes(finalPick.n)) {
+    const bonus = mostFrequentBonus(game, draws, first);
+    if (bonus != null) {
+      finalPick = {
+        ...finalPick,
+        n: bonus,
+        text: `${game.bonusLabel} ${bonus} is selected from the numbers outside the first six.`,
+      };
     }
   }
 
@@ -1839,7 +1901,8 @@ function draftMainButtons(game) {
   let html = "";
   for (let n = game.mainMin; n <= game.mainMax; n += 1) {
     const on = !game.ordered && state.predictDraftMain.includes(n);
-    const locked = !game.ordered && full && !on;
+    const locked = (!game.ordered && full && !on)
+      || (game.bonusDistinct && state.predictDraftBonus === n);
     html += `<button type="button" class="num${on ? " on" : ""}" data-draft="w" data-n="${n}" aria-pressed="${on ? "true" : "false"}"${locked ? " disabled" : ""}>${n}</button>`;
   }
   return html;
@@ -1858,7 +1921,7 @@ function draftBonusButtons(game) {
   let html = "";
   for (let n = 1; n <= game.bonusMax; n += 1) {
     const on = state.predictDraftBonus === n;
-    const taken = used.has(n);
+    const taken = used.has(n) || (game.bonusDistinct && state.predictDraftMain.includes(n));
     html += `<button type="button" class="num${on ? " on" : ""}" data-draft="p" data-n="${n}" aria-pressed="${on ? "true" : "false"}"${taken ? " disabled" : ""}>${n}</button>`;
   }
   return html;
@@ -1905,7 +1968,7 @@ function patternBuilderHTML(game) {
   return `<div class="pattern-builder">
     <h3>Build pattern-based sets</h3>
     <div class="seg pattern-mode" role="group" aria-label="Pattern mode">${modeButtons}</div>
-    <p class="muted">Use the selected date range to rank number pairings and Powerballs. Historical patterns do not change the odds of a future draw.</p>
+    <p class="muted">Use the selected date range to rank historical number patterns and complete ${esc(game.label)} lines. Historical patterns do not change the odds of a future draw.</p>
     <div class="pattern-controls">
       ${anchorControl}
       <label>${state.patternMode === "single" ? "Number of candidate sets" : "Candidates per anchor"}
@@ -1982,6 +2045,7 @@ function generatePatternSets(game, count, seed) {
         if (overlap) scores.set(draw.bonus, (scores.get(draw.bonus) || 0) + overlap);
       });
       for (let n = 1; n <= game.bonusMax; n += 1) {
+        if (game.bonusDistinct && main.includes(n)) continue;
         const score = scores.get(n) || 0;
         if (bonus == null || score > bonusScore || (score === bonusScore && (bonusFrequency.get(n) || 0) > (bonusFrequency.get(bonus) || 0)) || (score === bonusScore && (bonusFrequency.get(n) || 0) === (bonusFrequency.get(bonus) || 0) && n < bonus)) {
           bonus = n;
@@ -2137,14 +2201,14 @@ function predictFromSets(game, lines) {
         d.main.forEach((n) => { if (want.has(n)) overlap += 1; });
         if (overlap) withMain.set(d.bonus, (withMain.get(d.bonus) || 0) + overlap);
       });
-      const bonuses = [...bVotes.keys()].sort((a, b) => (
+      const bonuses = [...bVotes.keys()].filter((n) => !game.bonusDistinct || !main.includes(n)).sort((a, b) => (
         (bVotes.get(b) - bVotes.get(a))
         || ((latestBonus.get(b) || 0) - (latestBonus.get(a) || 0))
         || ((withMain.get(b) || 0) - (withMain.get(a) || 0))
         || ((bFreq.get(b) || 0) - (bFreq.get(a) || 0))
         || a - b
       ));
-      bonus = bonuses[0];
+      bonus = bonuses[0] == null ? mostFrequentBonus(game, draws, main) : bonuses[0];
       notes.push(`${game.bonusLabel} ${bonus} is in ${bVotes.get(bonus)} of your ${lines.length} sets and in ${commas(bFreq.get(bonus) || 0)} drawings`);
     }
     detail = `${notes.join(". ")}. A tie follows the latest ${commas(latestCut)} drawings, so running this again can shift a close number.`;
@@ -2217,7 +2281,7 @@ function renderPredictor() {
       <h3>Set ${state.predictLines.length + 1} of ${state.predictSetCount}</h3>
       <p class="help">Select ${game.mainCount} ${game.ordered ? "digits" : "numbers"} from ${game.mainMin} to ${game.mainMax}${game.ordered ? ". Order matters, and a digit can repeat." : ""}${game.bonusMax ? `, then 1 ${esc(game.bonusLabel)}.` : (game.ordered ? "" : ".")}</p>
       <div class="num-grid${game.ordered ? " digits" : ""}" id="predict-grid">${draftMainButtons(game)}</div>
-      ${game.bonusMax ? `<h3>${esc(game.bonusLabel)}</h3><p class="help">Select 1 ${esc(game.bonusLabel)} from 1 to ${game.bonusMax}. A ${esc(game.bonusLabel)} already used in a set stays unavailable.</p><div class="num-grid" id="predict-bonus">${draftBonusButtons(game)}</div>` : ""}
+      ${game.bonusMax ? `<h3>${esc(game.bonusLabel)}</h3><p class="help">Select 1 ${esc(game.bonusLabel)} from 1 to ${game.bonusMax}. A ${esc(game.bonusLabel)} already used in a set stays unavailable.${game.bonusDistinct ? " It must also differ from this set's main numbers." : ""}</p><div class="num-grid" id="predict-bonus">${draftBonusButtons(game)}</div>` : ""}
       <div class="slot-row spread" id="predict-draft"></div>
       <p class="hint" id="predict-hint"></p>
       <div class="check-wrap">
@@ -2262,7 +2326,8 @@ function syncPredict() {
     const on = !game.ordered && state.predictDraftMain.includes(n);
     btn.classList.toggle("on", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.disabled = !game.ordered && full && !on;
+    btn.disabled = (!game.ordered && full && !on)
+      || (game.bonusDistinct && state.predictDraftBonus === n);
   });
   const usedBonus = usedPredictBonuses();
   document.querySelectorAll("[data-draft='p']").forEach((btn) => {
@@ -2270,7 +2335,7 @@ function syncPredict() {
     const on = state.predictDraftBonus === n;
     btn.classList.toggle("on", on);
     btn.setAttribute("aria-pressed", on ? "true" : "false");
-    btn.disabled = usedBonus.has(n);
+    btn.disabled = usedBonus.has(n) || (game.bonusDistinct && state.predictDraftMain.includes(n));
   });
   const draft = document.getElementById("predict-draft");
   if (draft) {
@@ -2313,6 +2378,7 @@ function syncPredict() {
 function toggleDraftMain(n) {
   const game = predictGame();
   if (state.predictLines.length >= state.predictSetCount) return;
+  if (game.bonusDistinct && state.predictDraftBonus === n) return;
   if (game.ordered) {
     if (state.predictDraftMain.length >= game.mainCount) return;
     state.predictDraftMain.push(n);
@@ -2339,6 +2405,7 @@ function toggleDraftMain(n) {
 function selectDraftBonus(n) {
   if (state.predictLines.length >= state.predictSetCount) return;
   if (usedPredictBonuses().has(n)) return;
+  if (predictGame().bonusDistinct && state.predictDraftMain.includes(n)) return;
   state.predictDraftBonus = state.predictDraftBonus === n ? null : n;
   syncPredict();
 }
@@ -2359,6 +2426,7 @@ function addPredictSet() {
   const game = predictGame();
   if (state.predictLines.length >= state.predictSetCount || !draftComplete(game)) return;
   const main = game.ordered ? state.predictDraftMain.slice() : state.predictDraftMain.slice().sort((a, b) => a - b);
+  if (game.bonusDistinct && main.includes(state.predictDraftBonus)) return;
   state.predictLines.push({ main, bonus: game.bonusMax ? state.predictDraftBonus : null });
   state.patternGenerated = false;
   state.predictDraftMain = [];

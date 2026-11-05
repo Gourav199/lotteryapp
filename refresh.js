@@ -10,6 +10,7 @@
   const SOURCES = [
     { id: "powerball", label: "Powerball", resource: "d6yy-54nr", bucket: "powerball" },
     { id: "megamillions", label: "Mega Millions", resource: "5xaw-6ayf", bucket: "game" },
+    { id: "lotto", label: "New York Lotto", resource: "6nbc-h7bj", bucket: "game" },
     { id: "millionaire", label: "Millionaire for Life", resource: "a4w9-a3tp", bucket: "game" },
     { id: "take5", label: "Take 5", resource: "dg63-4siq", bucket: "game", session: true },
     { id: "daily", label: "Numbers and Win 4", resource: "hsys-3def", bucket: "daily", session: true },
@@ -146,6 +147,16 @@
     }).filter(Boolean);
   }
 
+  function lottoRows(raw) {
+    return raw.map((row) => {
+      const whites = sorted(ints(row.winning_numbers));
+      const bonus = Number(row.bonus);
+      if (!uniqueInRange(whites, 1, 59, 6)) return null;
+      if (!Number.isInteger(bonus) || bonus < 1 || bonus > 59 || whites.includes(bonus)) return null;
+      return [isoDate(row.draw_date), ...whites, bonus];
+    }).filter(Boolean);
+  }
+
   function take5Rows(raw) {
     const rows = [];
     raw.forEach((row) => {
@@ -183,6 +194,7 @@
   function convert(source, raw) {
     if (source.id === "powerball") return powerballRows(raw);
     if (source.id === "megamillions") return megaRows(raw);
+    if (source.id === "lotto") return lottoRows(raw);
     if (source.id === "millionaire") return millionaireRows(raw);
     if (source.id === "take5") return take5Rows(raw);
     if (source.id === "pick10") return pick10Rows(raw);
@@ -206,7 +218,7 @@
   function applySaved(store) {
     const power = merge(window.POWERBALL_DRAWS, cleanRows(store.powerball), false);
     window.POWERBALL_DRAWS = power.rows;
-    ["megamillions", "millionaire", "take5", "win4", "numbers", "pick10"].forEach((id) => {
+    ["megamillions", "lotto", "millionaire", "take5", "win4", "numbers", "pick10"].forEach((id) => {
       const session = id === "take5" || id === "win4" || id === "numbers";
       const merged = merge(gameList(id), cleanRows(store[id]), session);
       setGameList(id, merged.rows);
@@ -242,7 +254,7 @@
 
   function remember(store, original) {
     store.powerball = extras(window.POWERBALL_DRAWS, original.powerball, false);
-    ["megamillions", "millionaire", "take5", "win4", "numbers", "pick10"].forEach((id) => {
+    ["megamillions", "lotto", "millionaire", "take5", "win4", "numbers", "pick10"].forEach((id) => {
       const session = id === "take5" || id === "win4" || id === "numbers";
       store[id] = extras(gameList(id), original[id], session);
     });
@@ -265,6 +277,7 @@
   const original = {
     powerball: keysOf(window.POWERBALL_DRAWS, false),
     megamillions: keysOf(gameList("megamillions"), false),
+    lotto: keysOf(gameList("lotto"), false),
     millionaire: keysOf(gameList("millionaire"), false),
     take5: keysOf(gameList("take5"), true),
     win4: keysOf(gameList("win4"), true),
