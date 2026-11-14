@@ -101,6 +101,7 @@
     button:hover { background: #8c1c14; }
     button:active { transform: translateY(1px); }
     button:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+    button:disabled { opacity: .7; cursor: wait; }
     .message {
       margin: 0 0 16px;
       padding: 10px 12px;
@@ -137,21 +138,21 @@
         <span class="mark" aria-hidden="true">L</span>
         <div>
           <p class="eyebrow">Lottery Number Tools</p>
-          <h1>Welcome back</h1>
+          <h1 id="auth-title">Welcome back</h1>
         </div>
       </div>
     </header>
     <div class="form-body">
-      <p class="intro">Sign in to open your number analysis workspace.</p>
+      <p class="intro" id="auth-intro">Sign in to open your number analysis workspace.</p>
       <form id="login-form">
         <p class="message" id="login-message" role="alert" aria-live="polite" hidden></p>
         <label for="username">Username</label>
-        <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+        <input id="username" name="username" type="text" autocomplete="username" spellcheck="false" required autofocus>
         <label for="password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
-        <button type="submit">Sign in</button>
+        <button type="submit" id="submit-button">Sign in</button>
       </form>
-      <p class="fine-print">This sign-in is stored only in this browser session.</p>
+      <p class="fine-print">An administrator creates each username and password.</p>
     </div>
   </main>
 </body>

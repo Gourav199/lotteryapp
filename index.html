@@ -45,8 +45,16 @@
     border-bottom: 3px solid var(--gold);
   }
   .wrap { max-width: 1100px; margin: 0 auto; padding: 0 18px; }
-  header .wrap { min-height: 48px; display: flex; align-items: center; padding-top: 8px; padding-bottom: 8px; }
-  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0; }
+  header .wrap { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; padding-bottom: 8px; }
+  .crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 0; flex: 1; min-width: 0; }
+  .header-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+  .sign-out, a.sign-out {
+    flex: none; border: 1px solid rgba(255,255,255,.5); border-radius: 999px;
+    background: transparent; color: #fff; padding: 6px 12px; font-size: 13px; font-weight: 700;
+    text-decoration: none; line-height: 1.2;
+  }
+  .sign-out:hover, a.sign-out:hover { background: rgba(255,255,255,.1); }
+  .sign-out:disabled { opacity: .7; cursor: wait; }
   .crumbs button {
     background: none; border: none; color: #fff; padding: 0; font-size: 14px;
   }
@@ -358,6 +366,9 @@
 <header>
   <div class="wrap">
     <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+    <div class="header-actions">
+      <button type="button" class="sign-out" id="sign-out">Sign out</button>
+    </div>
   </div>
 </header>
 <div class="wrap page">
