@@ -9,6 +9,8 @@ const {
   createAccount,
   listAccounts,
   setAccountPassword,
+  setAdminPassword,
+  seedAdminFromEnv,
 } = require("../../lib/accounts");
 
 async function requireAdmin(req, res) {
@@ -43,17 +45,33 @@ module.exports = async function adminUsers(req, res) {
 
   try {
     if (req.method === "GET") {
+      await seedAdminFromEnv();
       const accounts = await listAccounts();
-      return sendJson(res, 200, { accounts });
+      return sendJson(res, 200, {
+        admin: { username: admin.username },
+        accounts,
+      });
+    }
+
+    const body = readBody(req);
+    if (!body) return sendJson(res, 400, { error: "Send a JSON username and password." });
+
+    if (body.admin === true) {
+      if (req.method !== "PATCH") {
+        res.setHeader("Allow", "PATCH");
+        return sendJson(res, 405, { error: "Method not allowed." });
+      }
+      const problem = accountError(admin.username, body.password);
+      if (problem) return sendJson(res, 400, { error: problem });
+      const updated = await setAdminPassword(admin._id, body.password);
+      if (!updated) return sendJson(res, 404, { error: "The administrator account was not found." });
+      return sendJson(res, 200, updated);
     }
 
     if (req.method !== "POST" && req.method !== "PATCH") {
       res.setHeader("Allow", "GET, POST, PATCH");
       return sendJson(res, 405, { error: "Method not allowed." });
     }
-
-    const body = readBody(req);
-    if (!body) return sendJson(res, 400, { error: "Send a JSON username and password." });
 
     const username = normalizeUsername(body.username);
     const problem = accountError(username, body.password);

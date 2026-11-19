@@ -25,6 +25,7 @@ function loadEnv() {
 
 loadEnv();
 
+const { seedAdminFromEnv } = require("./lib/accounts");
 const adminUsers = require("./api/admin/users");
 const routes = {
   "POST /api/auth/login": require("./api/auth/login"),
@@ -129,5 +130,11 @@ const server = http.createServer(async (req, res) => {
 
 const port = Number(process.env.PORT) || 3000;
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Lottery app running at http://127.0.0.1:${port}`);
+  seedAdminFromEnv()
+    .catch((error) => {
+      console.error("Could not store the administrator account:", error && error.message);
+    })
+    .finally(() => {
+      console.log(`Lottery app running at http://127.0.0.1:${port}`);
+    });
 });

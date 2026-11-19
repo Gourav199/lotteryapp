@@ -108,7 +108,7 @@ function renderAccounts(accounts) {
     const save = document.createElement("button");
     save.type = "submit";
     save.className = "ghost";
-    save.textContent = "Save";
+    save.textContent = "Reset";
     editor.append(input, save);
     editor.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -156,12 +156,23 @@ async function loadAccounts() {
     showMessage(payload.error || "Could not load accounts.");
     return;
   }
+  const adminName = document.getElementById("admin-username");
+  if (adminName) adminName.value = payload.admin && payload.admin.username ? payload.admin.username : "";
   renderAccounts(payload.accounts || []);
+}
+
+function showResetMessage(text, ok) {
+  const message = document.getElementById("admin-reset-message");
+  message.textContent = text;
+  message.hidden = !text;
+  message.classList.toggle("ok", Boolean(ok));
 }
 
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("create-form");
   const submit = document.getElementById("create-button");
+  const resetForm = document.getElementById("admin-reset-form");
+  const resetButton = document.getElementById("admin-reset-button");
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -199,6 +210,43 @@ document.addEventListener("DOMContentLoaded", () => {
     } finally {
       submit.disabled = false;
       submit.textContent = "Create account";
+    }
+  });
+
+  resetForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    showResetMessage("");
+    const password = document.getElementById("admin-password").value;
+    if (password.length < 8 || password.length > 72) {
+      showResetMessage("Password must be 8–72 characters.");
+      return;
+    }
+
+    resetButton.disabled = true;
+    resetButton.textContent = "Saving…";
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "PATCH",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ admin: true, password }),
+      });
+      const payload = await readJson(response);
+      if (response.status === 401) {
+        window.location.replace("login.html");
+        return;
+      }
+      if (!response.ok) {
+        showResetMessage(payload.error || "Could not reset the administrator password.");
+        return;
+      }
+      resetForm.elements.password.value = "";
+      showResetMessage("Administrator password updated.", true);
+    } catch {
+      showResetMessage("Could not reach the server.");
+    } finally {
+      resetButton.disabled = false;
+      resetButton.textContent = "Reset password";
     }
   });
 

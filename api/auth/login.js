@@ -1,6 +1,5 @@
 "use strict";
 
-const { timingSafeEqual } = require("crypto");
 const { sendJson, readBody, requireConfig, setSessionCookie } = require("../../lib/http");
 const {
   normalizeUsername,
@@ -8,20 +7,10 @@ const {
   signSession,
   verifyPassword,
   findByUsername,
-  ensureAdmin,
+  seedAdminFromEnv,
 } = require("../../lib/accounts");
 
 const INVALID = "That username or password doesn't match.";
-
-function isEnvAdmin(username, password) {
-  const adminUser = normalizeUsername(process.env.ADMIN_USERNAME || "");
-  const adminPassword = process.env.ADMIN_PASSWORD || "";
-  if (!adminUser || !adminPassword || username !== adminUser) return false;
-  const given = Buffer.from(String(password));
-  const expected = Buffer.from(adminPassword);
-  if (given.length !== expected.length) return false;
-  return timingSafeEqual(given, expected);
-}
 
 module.exports = async function login(req, res) {
   if (req.method !== "POST") {
@@ -40,12 +29,7 @@ module.exports = async function login(req, res) {
   }
 
   try {
-    if (isEnvAdmin(username, password)) {
-      const admin = await ensureAdmin(username, password);
-      setSessionCookie(req, res, signSession(admin));
-      return sendJson(res, 200, publicUser(admin));
-    }
-
+    await seedAdminFromEnv();
     const user = await findByUsername(username);
     const matches = await verifyPassword(password, user && user.passwordHash);
     if (!user || !matches) return sendJson(res, 401, { error: INVALID });

@@ -75,6 +75,7 @@
       width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #b9b09f; border-radius: 4px;
       background: #fff; color: var(--ink); font: 16px/1.4 Arial, sans-serif;
     }
+    input[readonly] { background: #f7f1e6; color: var(--navy); }
     button.primary, button.ghost {
       min-height: 44px; border-radius: 4px; font: 700 14px/1 Arial, sans-serif;
     }
@@ -143,6 +144,24 @@
           <button class="primary" id="create-button" type="submit">Create account</button>
         </form>
         <p class="message" id="admin-message" role="status" hidden></p>
+      </div>
+    </section>
+    <section class="card">
+      <div class="form-body">
+        <h2>Administrator</h2>
+        <p class="intro">This username and password are stored in the database. Reset the password here when you want a new one.</p>
+        <form class="create" id="admin-reset-form">
+          <div>
+            <label for="admin-username">Username</label>
+            <input id="admin-username" name="username" type="text" readonly>
+          </div>
+          <div>
+            <label for="admin-password">New password</label>
+            <input id="admin-password" name="password" type="text" autocomplete="off" spellcheck="false" required>
+          </div>
+          <button class="primary" id="admin-reset-button" type="submit">Reset password</button>
+        </form>
+        <p class="message" id="admin-reset-message" role="status" hidden></p>
       </div>
     </section>
     <section class="card">

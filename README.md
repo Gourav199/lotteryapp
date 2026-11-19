@@ -7,7 +7,7 @@ Static lottery workspace with a Node.js sign-in API. An administrator creates ea
 1. Copy `.env.example` to `.env`.
 2. Set `MONGODB_URI` to a MongoDB Atlas (or local) connection string.
 3. Set `JWT_SECRET` to a random string of at least 32 characters.
-4. Set `ADMIN_USERNAME` and `ADMIN_PASSWORD` for the Accounts page.
+4. Optional, and only for a new database: set `ADMIN_USERNAME` and `ADMIN_PASSWORD`. The first sign-in copies them into MongoDB. After an administrator account exists, sign-in uses that database record, and the password is changed from the Accounts page.
 5. Install and start:
 
 ```bash
@@ -15,7 +15,7 @@ npm install
 npm run dev
 ```
 
-Open http://127.0.0.1:3000/login.html and sign in with the admin username and password. The Accounts page creates sign-ins for everyone else.
+Open http://127.0.0.1:3000/login.html and sign in with the administrator account stored in MongoDB. The Accounts page creates sign-ins for everyone else and can reset the administrator password.
 
 ## Vercel
 
@@ -28,9 +28,8 @@ The site and the API deploy together. Vercel serves the HTML files and runs `api
    - `MONGODB_URI`
    - `MONGODB_DB` (optional, defaults to `lottery`)
    - `JWT_SECRET`
-   - `ADMIN_USERNAME`
-   - `ADMIN_PASSWORD`
-5. Deploy. The production site is served over HTTPS, and the session cookie is marked Secure.
+   - `ADMIN_USERNAME` and `ADMIN_PASSWORD` (optional; used once to create the administrator account when MongoDB does not have one yet)
+5. Deploy. The production site is served over HTTPS, and the session cookie is marked Secure. After the administrator account is in MongoDB, you can remove `ADMIN_USERNAME` and `ADMIN_PASSWORD`. Reset that password from the Accounts page.
 
 Endpoints:
 
@@ -39,4 +38,4 @@ Endpoints:
 - `POST /api/auth/logout` — clear the session
 - `GET /api/admin/users` — list usernames and passwords (admin only)
 - `POST /api/admin/users` — create an account (admin only)
-- `PATCH /api/admin/users` — replace a password (admin only)
+- `PATCH /api/admin/users` — replace a password, or reset the administrator password (admin only)
